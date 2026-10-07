@@ -1,0 +1,97 @@
+{# Reusable Jinja2 macros — demonstrates template reuse #}
+
+{% macro status_badge(status) -%}
+  <span class="badge rounded-pill text-bg-{{ STATUS_BADGE.get(status, 'secondary') }} status-badge">{{ status }}</span>
+{%- endmacro %}
+
+{% macro priority_badge(priority) -%}
+  <span class="prio prio-{{ priority|lower }}">
+    {% if priority == 'Critical' %}<i class="bi bi-lightning-charge-fill"></i>{% endif %}{{ priority }}
+  </span>
+{%- endmacro %}
+
+{% macro flags(c) -%}
+  {% if c.is_urgent %}<span class="flag flag-urgent" title="Critical priority"><i class="bi bi-exclamation-triangle-fill"></i> URGENT</span>{% endif %}
+  {% if c.is_overdue %}<span class="flag flag-overdue" title="Unresolved beyond the allowed time"><i class="bi bi-hourglass-split"></i> OVERDUE</span>{% endif %}
+{%- endmacro %}
+
+{% macro stat_card(label, value, icon, tone='primary', link=None) -%}
+  <div class="col-6 col-md-4 col-xl">
+    {% if link %}<a href="{{ link }}" class="stat-link">{% endif %}
+    <div class="stat-card tone-{{ tone }}">
+      <div class="stat-icon"><i class="bi {{ icon }}"></i></div>
+      <div>
+        <div class="stat-value">{{ value }}</div>
+        <div class="stat-label">{{ label }}</div>
+      </div>
+    </div>
+    {% if link %}</a>{% endif %}
+  </div>
+{%- endmacro %}
+
+{% macro stepper(status) -%}
+  {% set rejected = status == 'Rejected' %}
+  {% set idx = WORKFLOW.index(status) if status in WORKFLOW else (4 if status == 'Closed' else (3 if status == 'Reopened' else -1)) %}
+  <div class="stepper {{ 'is-rejected' if rejected }}">
+    {% for s in WORKFLOW %}
+      <div class="step {{ 'done' if loop.index0 < idx or (loop.index0 == idx and idx == 4) }} {{ 'current' if loop.index0 == idx and idx < 4 }}">
+        <div class="step-dot">{% if loop.index0 < idx or idx == 4 %}<i class="bi bi-check-lg"></i>{% else %}{{ loop.index }}{% endif %}</div>
+        <div class="step-label">{{ s }}</div>
+      </div>
+    {% endfor %}
+  </div>
+  {% if rejected %}<div class="alert alert-danger py-2 mt-3 mb-0"><i class="bi bi-x-octagon me-1"></i>This complaint was rejected.</div>{% endif %}
+  {% if status == 'Reopened' %}<div class="alert alert-reopened py-2 mt-3 mb-0"><i class="bi bi-arrow-counterclockwise me-1"></i>This complaint was reopened and is back with the resolution team.</div>{% endif %}
+  {% if status == 'Closed' %}<div class="alert alert-dark py-2 mt-3 mb-0"><i class="bi bi-lock me-1"></i>This complaint is closed.</div>{% endif %}
+{%- endmacro %}
+
+{% macro timeline(history, show_people=True) -%}
+  <ol class="timeline">
+    {% for h in history|reverse %}
+      <li class="tl-item tl-{{ STATUS_BADGE.get(h.status, 'secondary') }}">
+        <div class="tl-dot"></div>
+        <div class="tl-body">
+          <div class="d-flex flex-wrap justify-content-between gap-2">
+            <div>
+              {% if h.from_status and h.from_status != h.status %}
+                <span class="text-muted small">{{ h.from_status }}</span> <i class="bi bi-arrow-right small text-muted"></i>
+              {% endif %}
+              {{ status_badge(h.status) }}
+              {% if h.from_status == h.status %}<span class="badge text-bg-light border ms-1">Note</span>{% endif %}
+            </div>
+            <small class="text-muted"><i class="bi bi-clock me-1"></i>{{ h.timestamp|dt }}</small>
+          </div>
+          {% if h.remarks %}<p class="mb-1 mt-2">{{ h.remarks }}</p>{% endif %}
+          {% if show_people %}<small class="text-muted"><i class="bi bi-person me-1"></i>{{ h.changed_by_name or h.changed_by }} ({{ h.changed_by }})</small>{% endif %}
+        </div>
+      </li>
+    {% endfor %}
+  </ol>
+{%- endmacro %}
+
+{% macro stars(n) -%}
+  <span class="stars">{% for i in range(1, 6) %}<i class="bi {{ 'bi-star-fill' if i <= n else 'bi-star' }}"></i>{% endfor %}</span>
+{%- endmacro %}
+
+{% macro empty(icon, title, text, link=None, link_text=None) -%}
+  <div class="empty-state">
+    <i class="bi {{ icon }}"></i>
+    <h6>{{ title }}</h6>
+    <p class="text-muted mb-3">{{ text }}</p>
+    {% if link %}<a href="{{ link }}" class="btn btn-primary btn-sm">{{ link_text }}</a>{% endif %}
+  </div>
+{%- endmacro %}
+
+{# ---------- SLA monitoring ---------- #}
+{% macro sla_badge(c, short=False) -%}
+  <span class="sla-pill sla-{{ c.sla_colour }}" title="SLA: {{ c.sla_text }}"><span class="sla-dot"></span>{{ c.sla_label if not short else ('Breached' if c.sla_state == 'breached' else c.sla_label) }}</span>
+{%- endmacro %}
+
+{% macro sla_panel(c) -%}
+  <div class="sla-panel sla-{{ c.sla_colour }}">
+    <div class="sla-row"><span>SLA target</span><b>{{ c.sla_days }} day{{ 's' if c.sla_days > 1 }} ({{ c.priority }})</b></div>
+    <div class="sla-row"><span>SLA deadline</span><b>{{ c.sla_deadline|dt }}</b></div>
+    <div class="sla-row"><span>SLA status</span>{{ sla_badge(c) }}</div>
+    <div class="sla-row"><span>{{ 'Outcome' if c.sla_state in ['met', 'missed', 'na'] else ('Overdue by' if c.sla_state == 'breached' else 'Time left') }}</span><b>{{ c.sla_text }}</b></div>
+  </div>
+{%- endmacro %}

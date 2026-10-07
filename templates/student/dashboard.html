@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from "_macros.html" import stat_card, status_badge, priority_badge, flags, empty with context %}
+{% block title %}Student Dashboard{% endblock %}
+{% block page_title %}Student Dashboard{% endblock %}
+{% block content %}
+<div class="welcome">
+  <div>
+    <h1 class="h4 fw-bold mb-1">Hello, {{ session.name.split(' ')[0] }} 👋</h1>
+    <p class="text-muted mb-0">
+      {% if open_count %}You have <b>{{ open_count }}</b> open complaint{{ 's' if open_count > 1 }} being handled.
+      {% else %}No open complaints right now. Spotted a problem on campus? Report it.{% endif %}
+    </p>
+  </div>
+  <a href="{{ url_for('complaint.submit') }}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>New complaint</a>
+</div>
+
+{% if awaiting_feedback %}
+<div class="alert alert-success d-flex align-items-center gap-2">
+  <i class="bi bi-star-half fs-5"></i>
+  <div class="flex-grow-1"><b>{{ awaiting_feedback }}</b> resolved complaint{{ 's' if awaiting_feedback > 1 }} awaiting your feedback.</div>
+  <a href="{{ url_for('complaint.my_complaints', status='Resolved') }}" class="btn btn-sm btn-success">Rate now</a>
+</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  {{ stat_card('Total submitted', stats.total, 'bi-collection', 'primary', url_for('complaint.my_complaints')) }}
+  {{ stat_card('Pending', stats.pending, 'bi-hourglass', 'slate', url_for('complaint.my_complaints', status='Submitted')) }}
+  {{ stat_card('In progress', stats.progress, 'bi-gear-wide-connected', 'amber', url_for('complaint.my_complaints', status='In Progress')) }}
+  {{ stat_card('Resolved', stats.resolved, 'bi-check2-circle', 'green', url_for('complaint.my_complaints', status='Resolved')) }}
+  {{ stat_card('Rejected', stats.rejected, 'bi-x-circle', 'red', url_for('complaint.my_complaints', status='Rejected')) }}
+</div>
+
+<div class="card panel">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-clock-history me-2"></i>Recently submitted</span>
+    <a href="{{ url_for('complaint.my_complaints') }}" class="small">View all</a>
+  </div>
+  {% if recent %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>ID</th><th>Title</th><th class="d-none d-md-table-cell">Category</th><th>Priority</th><th>Status</th><th class="d-none d-md-table-cell">Submitted</th></tr></thead>
+      <tbody>
+      {% for c in recent %}
+        <tr class="row-link {{ 'row-urgent' if c.is_urgent }}" data-href="{{ url_for('complaint.details', cid=c.complaint_id) }}">
+          <td class="fw-semibold text-nowrap">{{ c.complaint_id }}</td>
+          <td>{{ c.title }} {{ flags(c) }}</td>
+          <td class="d-none d-md-table-cell">{{ c.category }}</td>
+          <td>{{ priority_badge(c.priority) }}</td>
+          <td>{{ status_badge(c.status) }}</td>
+          <td class="d-none d-md-table-cell text-muted small">{{ c.created_at|dt('%d %b %Y') }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ empty('bi-inbox', 'No complaints yet', 'Complaints you submit will appear here.', url_for('complaint.submit'), 'Submit your first complaint') }}
+  {% endif %}
+</div>
+{% endblock %}

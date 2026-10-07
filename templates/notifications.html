@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_macros.html" import empty with context %}
+{% block title %}Notifications{% endblock %}
+{% block page_title %}Notifications{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div class="view-tabs mb-0">
+    <a href="{{ url_for('notification.index') }}" class="{{ 'active' if show != 'unread' }}"><i class="bi bi-bell"></i>All</a>
+    <a href="{{ url_for('notification.index', show='unread') }}" class="{{ 'active' if show == 'unread' }}"><i class="bi bi-envelope"></i>Unread{% if bell.count %} ({{ bell.count }}){% endif %}</a>
+  </div>
+  {% if bell.count %}
+  <form method="post" action="{{ url_for('notification.read_all') }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button class="btn btn-outline-primary btn-sm"><i class="bi bi-check2-all me-1"></i>Mark all as read</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="card panel">
+  {% if items %}
+  <div class="list-group list-group-flush">
+    {% for n in items %}
+      {% set ic = icons.get(n.type, ('bi-bell', 'secondary')) %}
+      <a href="{{ url_for('notification.read', nid=n._id|string) }}" class="list-group-item list-group-item-action notif-row {{ 'unread' if not n.is_read }}">
+        <span class="notif-icon tone-n-{{ ic[1] }}"><i class="bi {{ ic[0] }}"></i></span>
+        <div class="flex-grow-1 min-w-0">
+          <div class="d-flex flex-wrap justify-content-between gap-2">
+            <b>{{ n.title }}</b>
+            <small class="text-muted">{{ n.created_at|dt }}</small>
+          </div>
+          <div class="text-muted">{{ n.message }}</div>
+          {% if n.complaint_id %}<small class="text-primary">{{ n.complaint_id }} <i class="bi bi-arrow-right-short"></i></small>{% endif %}
+        </div>
+        {% if not n.is_read %}<span class="unread-dot" title="Unread"></span>{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+  {% else %}
+    {{ empty('bi-bell-slash', 'No notifications', 'Updates about your complaints will appear here.' if session.role == 'student' else 'New, critical, overdue and reassigned complaints will appear here.') }}
+  {% endif %}
+</div>
+{% endblock %}

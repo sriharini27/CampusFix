@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% from "_macros.html" import stat_card, status_badge, priority_badge, flags, empty, stars with context %}
+{% block title %}Admin Dashboard{% endblock %}
+{% block page_title %}Admin Dashboard{% endblock %}
+{% block content %}
+<div class="welcome">
+  <div>
+    <h1 class="h4 fw-bold mb-1">Resolution control room</h1>
+    <p class="text-muted mb-0">{{ stats.new }} new · {{ stats.overdue }} overdue · {{ stats.mine }} assigned to you</p>
+  </div>
+  <a href="{{ url_for('admin.complaints', status='Submitted') }}" class="btn btn-primary"><i class="bi bi-inbox me-1"></i>Review new complaints</a>
+</div>
+
+<div class="row g-3 mb-3">
+  {{ stat_card('Total complaints', stats.total, 'bi-collection', 'primary', url_for('admin.complaints')) }}
+  {{ stat_card('New', stats.new, 'bi-envelope-exclamation', 'slate', url_for('admin.complaints', status='Submitted')) }}
+  {{ stat_card('Under review', stats.review, 'bi-eye', 'info', url_for('admin.complaints', status='Under Review')) }}
+  {{ stat_card('Assigned', stats.assigned, 'bi-person-check', 'indigo', url_for('admin.complaints', status='Assigned')) }}
+</div>
+<div class="row g-3 mb-4">
+  {{ stat_card('In progress', stats.progress, 'bi-gear-wide-connected', 'amber', url_for('admin.complaints', status='In Progress')) }}
+  {{ stat_card('Resolved', stats.resolved, 'bi-check2-circle', 'green', url_for('admin.complaints', status='Resolved')) }}
+  {{ stat_card('High / Critical open', stats.high, 'bi-lightning-charge', 'red', url_for('admin.complaints', view='urgent')) }}
+  {{ stat_card('Overdue (open)', stats.overdue, 'bi-hourglass-split', 'orange', url_for('admin.complaints', view='overdue')) }}
+</div>
+
+<div class="sla-strip mb-4">
+  <div class="sla-strip-title"><i class="bi bi-stopwatch"></i> SLA monitor</div>
+  <a href="{{ url_for('admin.complaints', view='overdue') }}" class="sla-stat"><span class="sla-dot red"></span><b>{{ sla.breached }}</b> Total SLA breaches</a>
+  <a href="{{ url_for('admin.complaints', view='overdue', priority='Critical') }}" class="sla-stat"><span class="sla-dot red"></span><b>{{ sla.critical_breached }}</b> Critical breaches</a>
+  <a href="{{ url_for('admin.complaints', view='approaching') }}" class="sla-stat"><span class="sla-dot yellow"></span><b>{{ sla.approaching }}</b> Approaching SLA</a>
+  <div class="sla-stat"><span class="sla-dot {{ 'green' if sla.compliance >= 80 else ('yellow' if sla.compliance >= 60 else 'red') }}"></span><b>{{ sla.compliance }}%</b> SLA compliance</div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-5">
+    <div class="card panel h-100">
+      <div class="card-header d-flex justify-content-between">
+        <span><i class="bi bi-exclamation-diamond me-2 text-danger"></i>Needs attention</span>
+        <a class="small" href="{{ url_for('admin.complaints', view='overdue') }}">Overdue list</a>
+      </div>
+      {% if urgent %}
+      <div class="list-group list-group-flush">
+        {% for c in urgent %}
+        <a href="{{ url_for('admin.complaint_details', cid=c.complaint_id) }}" class="list-group-item list-group-item-action attention-item">
+          <div class="d-flex justify-content-between"><b>{{ c.complaint_id }}</b><small class="text-muted">{{ c.age_text }} old</small></div>
+          <div class="text-truncate">{{ c.title }}</div>
+          <div class="mt-1">{{ priority_badge(c.priority) }} {{ status_badge(c.status) }} {{ flags(c) }}</div>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+        {{ empty('bi-emoji-smile', 'All clear', 'No critical or overdue complaints.') }}
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-xl-7">
+    <div class="card panel mb-4">
+      <div class="card-header d-flex justify-content-between">
+        <span><i class="bi bi-clock-history me-2"></i>Latest complaints</span>
+        <a class="small" href="{{ url_for('admin.complaints') }}">View all</a>
+      </div>
+      {% if latest %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>ID</th><th>Title</th><th class="d-none d-md-table-cell">Student</th><th>Priority</th><th>Status</th></tr></thead>
+          <tbody>
+          {% for c in latest %}
+            <tr class="row-link {{ 'row-urgent' if c.is_urgent }}" data-href="{{ url_for('admin.complaint_details', cid=c.complaint_id) }}">
+              <td class="fw-semibold text-nowrap">{{ c.complaint_id }}</td>
+              <td>{{ c.title }} {{ flags(c) }}</td>
+              <td class="d-none d-md-table-cell small">{{ c.student_name }}</td>
+              <td>{{ priority_badge(c.priority) }}</td>
+              <td>{{ status_badge(c.status) }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        {{ empty('bi-inbox', 'No complaints yet', 'New student complaints will show up here.') }}
+      {% endif %}
+    </div>
+    <div class="card panel">
+      <div class="card-body d-flex flex-wrap align-items-center gap-4">
+        <div>
+          <div class="text-muted small text-uppercase fw-bold">Student satisfaction</div>
+          <div class="d-flex align-items-center gap-2"><span class="display-6 fw-bold">{{ feedback.avg }}</span>{{ stars(feedback.avg|round|int) }}</div>
+          <small class="text-muted">{{ feedback.count }} feedback response{{ 's' if feedback.count != 1 }}</small>
+        </div>
+        <div class="ms-auto d-flex gap-2">
+          <a href="{{ url_for('feedback.overview') }}" class="btn btn-outline-primary btn-sm">Feedback</a>
+          <a href="{{ url_for('analytics.analytics') }}" class="btn btn-primary btn-sm"><i class="bi bi-bar-chart-line me-1"></i>Analytics</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

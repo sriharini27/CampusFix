@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, priority_badge, flags, stepper, timeline, stars, sla_panel with context %}
+{% block title %}{{ c.complaint_id }}{% endblock %}
+{% block page_title %}Complaint {{ c.complaint_id }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('admin.complaints') }}" class="back-link"><i class="bi bi-arrow-left"></i> All complaints</a>
+
+<div class="card panel mb-4 {{ 'panel-urgent' if c.is_urgent }}">
+  <div class="card-body">
+    <div class="text-muted small mb-1">{{ c.complaint_id }} · submitted {{ c.created_at|dt }} · {{ c.age_text }} {{ 'to resolve' if c.resolved_at else 'old' }}{% if c.reported_via == 'qr' %} · <i class="bi bi-qr-code"></i> reported via QR{% endif %}{% if c.reopen_count %} · reopened {{ c.reopen_count }}×{% endif %}</div>
+    <h1 class="h4 fw-bold mb-2">{{ c.title }}</h1>
+    <div class="d-flex flex-wrap gap-2 align-items-center">{{ priority_badge(c.priority) }} {{ status_badge(c.status) }} {{ flags(c) }}</div>
+    {% if c.is_overdue %}
+      <div class="alert alert-warning mt-3 mb-0 py-2"><i class="bi bi-hourglass-split me-1"></i>
+        SLA breached: a <b>{{ c.priority }}</b> complaint should be resolved within {{ config.OVERDUE_DAYS[c.priority] }} day{{ 's' if config.OVERDUE_DAYS[c.priority] > 1 }}. It is now {{ c.sla_text.split('— ')[-1] }}.</div>
+    {% endif %}
+    <div class="mt-4">{{ stepper(c.status) }}</div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-7">
+    <div class="card panel mb-4">
+      <div class="card-header"><i class="bi bi-file-text me-2"></i>Complaint information</div>
+      <div class="card-body">
+        <p class="pre-line">{{ c.description }}</p>
+        <dl class="info-grid">
+          <dt>Student</dt><dd>{{ c.student_name }} ({{ c.student_id }}){% if student %} · <a href="mailto:{{ student.email }}">{{ student.email }}</a>{% endif %}</dd>
+          <dt>Category</dt><dd>{{ c.category }}</dd>
+          <dt>Location</dt><dd>{{ c.location }}</dd>
+          <dt>Department</dt><dd>{{ c.department or 'Not assigned' }}</dd>
+          <dt>Assigned staff</dt><dd>{{ c.assigned_staff.name ~ ' (' ~ c.assigned_staff.login_id ~ ')' if c.assigned_staff else '—' }}</dd>
+          <dt>Last updated</dt><dd>{{ c.updated_at|dt }}</dd>
+          {% if c.resolved_at %}<dt>Closed on</dt><dd>{{ c.resolved_at|dt }}</dd>{% endif %}
+          {% if supporters %}<dt>Also affected</dt><dd><i class="bi bi-people me-1"></i>{{ supporters|length }} student{{ 's' if supporters|length > 1 }} — {{ supporters|map(attribute='name')|join(', ') }}</dd>{% endif %}
+          {% if c.possible_duplicates %}<dt>Similar complaints</dt><dd><span class="small text-muted">Student was shown possible duplicates and chose to submit anyway:</span>
+            {% for d in c.possible_duplicates %}<a href="{{ url_for('admin.complaint_details', cid=d) }}" class="chip">{{ d }}</a>{% endfor %}</dd>{% endif %}
+          {% if c.attachment %}<dt>Attachment</dt><dd><a href="{{ url_for('static', filename='uploads/' ~ c.attachment) }}" target="_blank"><i class="bi bi-paperclip"></i> View file</a></dd>{% endif %}
+        </dl>
+        {% if c.resolution_remarks %}
+          <div class="remarks-box"><div class="small fw-bold text-uppercase mb-1"><i class="bi bi-chat-square-text me-1"></i>Latest remarks</div>{{ c.resolution_remarks }}</div>
+        {% endif %}
+        {% if feedback %}
+          <div class="remarks-box remarks-feedback mt-3"><div class="small fw-bold text-uppercase mb-1">Student feedback</div>
+            {{ stars(feedback.rating) }} <b>{{ RATING_LABELS[feedback.rating] }}</b>{% if feedback.comment %}<div class="mt-1">"{{ feedback.comment }}"</div>{% endif %}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card panel">
+      <div class="card-header"><i class="bi bi-clock-history me-2"></i>Status timeline <span class="badge text-bg-light border ms-1">{{ c.status_history|length }} events</span></div>
+      <div class="card-body">{{ timeline(c.status_history) }}</div>
+    </div>
+  </div>
+
+  <div class="col-xl-5">
+    {% set finished = c.status in ['Resolved', 'Closed', 'Rejected'] %}
+    <div class="card panel mb-4">
+      <div class="card-header"><i class="bi bi-stopwatch me-2"></i>SLA monitoring</div>
+      <div class="card-body">{{ sla_panel(c) }}</div>
+    </div>
+    <div class="card panel mb-4 action-card">
+      <div class="card-header"><i class="bi bi-diagram-3 me-2"></i>1 · Assign department &amp; staff</div>
+      <div class="card-body">
+        {% if finished %}
+          <p class="text-muted mb-0 small">This complaint is {{ c.status|lower }}. Re-open it to change the assignment.</p>
+        {% else %}
+        <form method="post" action="{{ url_for('admin.assign', cid=c.complaint_id) }}">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <label class="form-label">Department</label>
+          <select name="department" class="form-select mb-1" required id="deptSelect">
+            <option value="">Choose department…</option>
+            {% for d in departments %}
+              <option value="{{ d.name }}" {{ 'selected' if (c.department or suggested) == d.name }}>{{ d.name }}{{ ' ★ suggested' if d.name == suggested }}</option>
+            {% endfor %}
+          </select>
+          {% if suggested %}<small class="text-muted d-block mb-3"><i class="bi bi-magic me-1"></i>Smart routing suggests <b>{{ suggested }}</b> for <b>{{ c.category }}</b> complaints.</small>{% else %}<div class="mb-3"></div>{% endif %}
+          <label class="form-label">Staff member <span class="text-muted small">(optional)</span></label>
+          <select name="staff" class="form-select mb-3" id="staffSelect">
+            <option value="">— Department queue —</option>
+            {% for s in staff %}
+              <option value="{{ s.login_id }}" data-dept="{{ s.department }}" {{ 'selected' if c.assigned_staff and c.assigned_staff.login_id == s.login_id }}>{{ s.name }} · {{ s.department or s.role }}</option>
+            {% endfor %}
+          </select>
+          <input type="text" name="remarks" class="form-control mb-3" maxlength="500" placeholder="Note (optional)">
+          <button class="btn btn-primary w-100"><i class="bi bi-person-check me-1"></i>{{ 'Update assignment' if c.department else 'Assign' }}</button>
+          {% if c.status in ['Submitted', 'Under Review'] %}<small class="text-muted d-block mt-2">Assigning moves the status to <b>Assigned</b> automatically.</small>{% endif %}
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card panel mb-4 action-card">
+      <div class="card-header"><i class="bi bi-arrow-repeat me-2"></i>2 · Update status</div>
+      <div class="card-body">
+        {% if next_statuses %}
+        <form method="post" action="{{ url_for('admin.update_status', cid=c.complaint_id) }}">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <label class="form-label">Move from {{ status_badge(c.status) }} to</label>
+          <div class="status-choices mb-3">
+            {% for s in next_statuses %}
+              <input type="radio" class="btn-check" name="status" id="st{{ loop.index }}" value="{{ s }}" required {{ 'checked' if loop.first }}>
+              <label class="btn btn-outline-{{ STATUS_BADGE[s] }}" for="st{{ loop.index }}">{{ s }}</label>
+            {% endfor %}
+          </div>
+          <label class="form-label">Remarks <span class="text-muted small">(required for Resolved / Rejected)</span></label>
+          <textarea name="remarks" class="form-control mb-3" rows="3" maxlength="1000" placeholder="e.g. Technician replaced the faulty switchboard."></textarea>
+          <button class="btn btn-success w-100"><i class="bi bi-check2-circle me-1"></i>Update status</button>
+        </form>
+        {% else %}
+          <p class="text-muted small mb-0">No further transitions — this complaint is {{ c.status|lower }}.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if not finished %}
+    <div class="card panel action-card">
+      <div class="card-header"><i class="bi bi-chat-left-text me-2"></i>3 · Add progress remark</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('admin.add_remark', cid=c.complaint_id) }}">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <textarea name="remarks" class="form-control mb-3" rows="2" maxlength="1000" required placeholder="e.g. Spare part ordered, expected tomorrow."></textarea>
+          <button class="btn btn-outline-primary w-100">Add to timeline</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

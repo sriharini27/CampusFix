@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, priority_badge, flags, empty, sla_badge with context %}
+{% block title %}Complaints{% endblock %}
+{% block page_title %}Complaint Management{% endblock %}
+{% block content %}
+<div class="view-tabs">
+  {% for key, label, icon in [('', 'All', 'bi-collection'), ('urgent', 'High / Critical', 'bi-lightning-charge'), ('overdue', 'SLA breached', 'bi-hourglass-split'), ('approaching', 'Approaching SLA', 'bi-alarm'), ('mine', 'Assigned to me', 'bi-person-check')] %}
+    <a href="{{ url_for('admin.complaints', view=key) if key else url_for('admin.complaints') }}" class="{{ 'active' if f.view == key }}"><i class="bi {{ icon }}"></i>{{ label }}</a>
+  {% endfor %}
+</div>
+
+<form class="card panel mb-3" method="get">
+  <div class="card-body">
+    <input type="hidden" name="view" value="{{ f.view }}">
+    <div class="row g-2">
+      <div class="col-lg-4">
+        <div class="input-group"><span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="text" name="q" value="{{ f.q }}" class="form-control" placeholder="ID, title, location, student…"></div>
+      </div>
+      <div class="col-6 col-md-4 col-lg-2"><select name="status" class="form-select"><option value="">Status: all</option>{% for s in statuses %}<option {{ 'selected' if f.status == s }}>{{ s }}</option>{% endfor %}</select></div>
+      <div class="col-6 col-md-4 col-lg-2"><select name="priority" class="form-select"><option value="">Priority: all</option>{% for p in priorities %}<option {{ 'selected' if f.priority == p }}>{{ p }}</option>{% endfor %}</select></div>
+      <div class="col-6 col-md-4 col-lg-2"><select name="category" class="form-select"><option value="">Category: all</option>{% for c in categories %}<option {{ 'selected' if f.category == c }}>{{ c }}</option>{% endfor %}</select></div>
+      <div class="col-6 col-md-4 col-lg-2"><select name="department" class="form-select"><option value="">Department: all</option><option {{ 'selected' if f.department == 'Unassigned' }}>Unassigned</option>{% for d in departments %}<option {{ 'selected' if f.department == d }}>{{ d }}</option>{% endfor %}</select></div>
+      <div class="col-6 col-md-4 col-lg-2"><label class="form-label small mb-0 text-muted">From</label><input type="date" name="date_from" value="{{ f.date_from }}" class="form-control"></div>
+      <div class="col-6 col-md-4 col-lg-2"><label class="form-label small mb-0 text-muted">To</label><input type="date" name="date_to" value="{{ f.date_to }}" class="form-control"></div>
+      <div class="col-6 col-md-4 col-lg-2"><label class="form-label small mb-0 text-muted">Sort by</label>
+        <select name="sort" class="form-select">
+          {% for k, l in [('newest','Newest first'),('oldest','Oldest first'),('priority','Priority'),('updated','Recently updated')] %}<option value="{{ k }}" {{ 'selected' if sort == k }}>{{ l }}</option>{% endfor %}
+        </select></div>
+      <div class="col-lg-4 d-flex align-items-end gap-2">
+        <button class="btn btn-primary flex-grow-1"><i class="bi bi-funnel me-1"></i>Apply filters</button>
+        <a href="{{ url_for('admin.complaints') }}" class="btn btn-light">Reset</a>
+      </div>
+    </div>
+  </div>
+</form>
+
+<div class="card panel">
+  <div class="card-header">{{ complaints|length }} result{{ 's' if complaints|length != 1 }}</div>
+  {% if complaints %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>ID</th><th>Title</th><th class="d-none d-lg-table-cell">Category</th><th>Priority</th><th>Status</th>
+        <th class="d-none d-md-table-cell">Department</th><th class="d-none d-xl-table-cell">Staff</th><th class="d-none d-md-table-cell">Age</th><th class="d-none d-lg-table-cell">SLA</th></tr></thead>
+      <tbody>
+      {% for c in complaints %}
+        <tr class="row-link {{ 'row-urgent' if c.is_urgent }} {{ 'row-overdue' if c.is_overdue and not c.is_urgent }}" data-href="{{ url_for('admin.complaint_details', cid=c.complaint_id) }}">
+          <td class="fw-semibold text-nowrap">{{ c.complaint_id }}</td>
+          <td><div>{{ c.title }} {{ flags(c) }}{% if c.supporters %} <span class="flag flag-people" title="Other students affected"><i class="bi bi-people-fill"></i> +{{ c.supporters|length }}</span>{% endif %}{% if c.reported_via == 'qr' %} <i class="bi bi-qr-code text-muted" title="Reported via QR"></i>{% endif %}</div><small class="text-muted">{{ c.student_name }} · {{ c.location }}</small></td>
+          <td class="d-none d-lg-table-cell">{{ c.category }}</td>
+          <td>{{ priority_badge(c.priority) }}</td>
+          <td>{{ status_badge(c.status) }}</td>
+          <td class="d-none d-md-table-cell small">{{ c.department or '—' }}</td>
+          <td class="d-none d-xl-table-cell small">{{ c.assigned_staff.name if c.assigned_staff else '—' }}</td>
+          <td class="d-none d-md-table-cell small text-nowrap {{ 'text-danger fw-semibold' if c.is_overdue }}">{{ c.age_text }}</td>
+          <td class="d-none d-lg-table-cell">{{ sla_badge(c, short=True) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ empty('bi-search', 'No complaints match', 'Adjust the filters or reset them.') }}
+  {% endif %}
+</div>
+{% endblock %}

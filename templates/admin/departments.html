@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Departments{% endblock %}
+{% block page_title %}Departments{% endblock %}
+{% block content %}
+<div class="welcome">
+  <div>
+    <h1 class="h4 fw-bold mb-1">Departments &amp; smart routing</h1>
+    <p class="text-muted mb-0">Each department lists the complaint categories it handles — used to suggest the right department automatically.</p>
+  </div>
+  {% if session.role == 'admin' %}
+  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#deptModal" data-dept-new><i class="bi bi-plus-lg me-1"></i>New department</button>
+  {% endif %}
+</div>
+
+<div class="row g-3">
+  {% for d in departments %}
+  <div class="col-md-6 col-xl-4 col-xxl-3">
+    <div class="card panel dept-card h-100 {{ 'is-inactive' if not d.active }}">
+      <div class="card-body d-flex flex-column">
+        <div class="d-flex justify-content-between align-items-start mb-1">
+          <h2 class="h6 fw-bold mb-0">{{ d.name }}</h2>
+          {% if not d.active %}<span class="badge text-bg-secondary">Inactive</span>{% endif %}
+        </div>
+        <p class="small text-muted mb-2">{{ d.description or '—' }}</p>
+        <div class="mb-3">{% for c in d.categories %}<span class="chip">{{ c }}</span>{% else %}<span class="small text-muted">No categories mapped</span>{% endfor %}</div>
+        <div class="dept-stats mt-auto">
+          <a href="{{ url_for('admin.complaints', department=d.name) }}"><b>{{ d.total }}</b><span>Total</span></a>
+          <div><b class="text-warning">{{ d.open }}</b><span>Open</span></div>
+          <div><b class="text-success">{{ d.resolved }}</b><span>Resolved</span></div>
+          <div><b>{{ d.staff }}</b><span>Staff</span></div>
+        </div>
+        {% if session.role == 'admin' %}
+        <div class="d-flex gap-2 mt-3">
+          <button class="btn btn-sm btn-outline-primary flex-grow-1" data-bs-toggle="modal" data-bs-target="#deptModal"
+                  data-dept='{{ {"name": d.name, "description": d.description or "", "categories": d.categories}|tojson }}'><i class="bi bi-pencil"></i> Edit</button>
+          <form method="post" action="{{ url_for('admin.toggle_department') }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="name" value="{{ d.name }}">
+            <button class="btn btn-sm btn-outline-secondary">{{ 'Deactivate' if d.active else 'Activate' }}</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="col-12"><div class="alert alert-warning">No departments found. Run <code>python seed.py</code> to create the default departments.</div></div>
+  {% endfor %}
+</div>
+
+{% if session.role == 'admin' %}
+<div class="modal fade" id="deptModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="{{ url_for('admin.save_department') }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="original" id="deptOriginal">
+      <div class="modal-header"><h5 class="modal-title" id="deptModalTitle">New department</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <label class="form-label">Name</label>
+        <input type="text" name="name" id="deptName" class="form-control mb-3" maxlength="60" required>
+        <label class="form-label">Description</label>
+        <input type="text" name="description" id="deptDesc" class="form-control mb-3" maxlength="200">
+        <label class="form-label">Handles categories</label>
+        <div class="cat-grid">
+          {% for c in categories %}
+          <label class="form-check"><input class="form-check-input" type="checkbox" name="categories" value="{{ c }}"> {{ c }}</label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary">Save</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

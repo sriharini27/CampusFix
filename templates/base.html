@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}CampusFix{% endblock %} · CampusFix</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+  {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}app-body{% endblock %}">
+{% if session.get('user_id') %}
+  {% set role = session.get('role') %}
+  {% set ep = request.endpoint or '' %}
+  <aside class="sidebar" id="sidebar">
+    <a class="brand" href="{{ url_for('auth.index') }}">
+      <span class="brand-mark"><i class="bi bi-tools"></i></span>
+      <span>Campus<b>Fix</b></span>
+    </a>
+    <div class="role-pill {{ 'is-staff' if role != 'student' }}">
+      <i class="bi {{ 'bi-mortarboard' if role == 'student' else 'bi-shield-check' }}"></i>
+      {{ role|capitalize }} Portal
+    </div>
+    <nav class="side-nav">
+      {% if role == 'student' %}
+        <a href="{{ url_for('student.dashboard') }}" class="{{ 'active' if ep == 'student.dashboard' }}"><i class="bi bi-grid-1x2"></i>Dashboard</a>
+        <a href="{{ url_for('complaint.track') }}" class="{{ 'active' if ep == 'complaint.track' }}"><i class="bi bi-search"></i>Track Complaint</a>
+        <a href="{{ url_for('complaint.submit') }}" class="{{ 'active' if ep == 'complaint.submit' }}"><i class="bi bi-plus-circle"></i>Submit Complaint</a>
+        <a href="{{ url_for('complaint.my_complaints') }}" class="{{ 'active' if ep in ['complaint.my_complaints', 'complaint.details'] }}"><i class="bi bi-list-check"></i>My Complaints</a>
+      {% else %}
+        <a href="{{ url_for('admin.dashboard') }}" class="{{ 'active' if ep == 'admin.dashboard' }}"><i class="bi bi-speedometer2"></i>Admin Dashboard</a>
+        <a href="{{ url_for('admin.complaints') }}" class="{{ 'active' if ep in ['admin.complaints', 'admin.complaint_details'] }}"><i class="bi bi-inboxes"></i>Complaints</a>
+        <a href="{{ url_for('admin.departments') }}" class="{{ 'active' if ep == 'admin.departments' }}"><i class="bi bi-diagram-3"></i>Departments</a>
+        <a href="{{ url_for('analytics.analytics') }}" class="{{ 'active' if ep == 'analytics.analytics' }}"><i class="bi bi-bar-chart-line"></i>Analytics</a>
+        <a href="{{ url_for('feedback.overview') }}" class="{{ 'active' if ep == 'feedback.overview' }}"><i class="bi bi-star"></i>Feedback</a>
+        <a href="{{ url_for('location.locations') }}" class="{{ 'active' if ep.startswith('location.') }}"><i class="bi bi-qr-code"></i>QR Locations</a>
+      {% endif %}
+      <div class="nav-sep"></div>
+      <a href="{{ url_for('notification.index') }}" class="{{ 'active' if ep == 'notification.index' }}"><i class="bi bi-bell"></i>Notifications{% if bell.count %}<span class="nav-count">{{ bell.count }}</span>{% endif %}</a>
+      <a href="{{ url_for('auth.profile') }}" class="{{ 'active' if ep == 'auth.profile' }}"><i class="bi bi-person-circle"></i>Profile</a>
+      <a href="{{ url_for('auth.logout') }}"><i class="bi bi-box-arrow-right"></i>Logout</a>
+    </nav>
+    <div class="side-foot">Smart Campus Complaint &amp; Resolution System</div>
+  </aside>
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="btn btn-icon d-lg-none" id="sidebarToggle" aria-label="Menu"><i class="bi bi-list"></i></button>
+      <div class="topbar-title">{% block page_title %}{% endblock %}</div>
+      <div class="dropdown ms-auto">
+        <button class="btn btn-bell" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Notifications">
+          <i class="bi {{ 'bi-bell-fill' if bell.count else 'bi-bell' }}"></i>
+          {% if bell.count %}<span class="bell-count">{{ bell.count if bell.count < 100 else '99+' }}</span>{% endif %}
+        </button>
+        <div class="dropdown-menu dropdown-menu-end bell-menu shadow">
+          <div class="bell-head">
+            <b>Notifications</b>
+            {% if bell.count %}
+            <form method="post" action="{{ url_for('notification.read_all') }}">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <button class="btn btn-link btn-sm p-0">Mark all read</button>
+            </form>
+            {% endif %}
+          </div>
+          {% for n in bell['items'] %}
+            {% set ic = NOTIF_ICONS.get(n.type, ('bi-bell', 'secondary')) %}
+            <a class="bell-item {{ 'unread' if not n.is_read }}" href="{{ url_for('notification.read', nid=n._id|string) }}">
+              <span class="notif-icon tone-n-{{ ic[1] }}"><i class="bi {{ ic[0] }}"></i></span>
+              <span class="flex-grow-1 min-w-0">
+                <span class="d-block fw-semibold small">{{ n.title }}</span>
+                <span class="d-block small text-muted text-truncate">{{ n.message }}</span>
+                <span class="d-block text-muted" style="font-size:.7rem">{{ n.created_at|dt('%d %b, %I:%M %p') }}</span>
+              </span>
+            </a>
+          {% else %}
+            <div class="text-center text-muted small py-4"><i class="bi bi-bell-slash d-block fs-4 mb-1"></i>You're all caught up</div>
+          {% endfor %}
+          <a class="bell-foot" href="{{ url_for('notification.index') }}">View all notifications</a>
+        </div>
+      </div>
+      <div class="topbar-user">
+        <span class="avatar">{{ session.get('name', '?')[:1] }}</span>
+        <div class="d-none d-sm-block lh-sm">
+          <div class="fw-semibold">{{ session.get('name') }}</div>
+          <small class="text-muted">{{ session.get('login_id') }}{% if session.get('department') and role != 'student' %} · {{ session.get('department') }}{% endif %}</small>
+        </div>
+      </div>
+    </header>
+    <div class="content">
+      {% include "_flash.html" %}
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+{% else %}
+  {% block public %}{% endblock %}
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CampusFix QR codes</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Plus Jakarta Sans", system-ui, sans-serif; color: #182033; background: #f3f5fb; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.5rem; background: #141b33; color: #fff; }
+    .toolbar button { background: #3b4fd8; color: #fff; border: 0; border-radius: 10px; padding: .6rem 1.2rem; font: inherit; font-weight: 700; cursor: pointer; }
+    .sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1.25rem; padding: 1.5rem; max-width: 1100px; margin: 0 auto; }
+    .poster { background: #fff; border: 2px dashed #c9cfe0; border-radius: 16px; padding: 1.5rem 1.25rem; text-align: center; break-inside: avoid; }
+    .poster .brand { font-weight: 500; font-size: 1.1rem; } .poster .brand b { color: #12b3a6; font-weight: 800; }
+    .poster .call { font-weight: 800; font-size: 1.25rem; margin: .4rem 0 .9rem; }
+    .poster svg { width: 190px; height: 190px; display: block; margin: 0 auto; }
+    .poster .loc { margin-top: .9rem; font-size: 1.3rem; font-weight: 800; color: #3b4fd8; }
+    .poster .hint { font-size: .78rem; color: #6b7489; margin-top: .35rem; }
+    @media print {
+      body { background: #fff; } .toolbar { display: none; }
+      .sheet { grid-template-columns: repeat(2, 1fr); padding: 0; gap: 12mm; }
+      .poster { border: 1.5px dashed #999; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar"><span>{{ locations|length }} QR code{{ 's' if locations|length != 1 }} ready to print</span><button onclick="window.print()">Print</button></div>
+  <div class="sheet">
+    {% for l in locations %}
+    <div class="poster">
+      <div class="brand">Campus<b>Fix</b></div>
+      <div class="call">Spotted a problem here?</div>
+      {{ l.svg }}
+      <div class="loc">{{ l.name }}</div>
+      <div class="hint">Scan to report an issue at this location</div>
+    </div>
+    {% endfor %}
+  </div>
+</body>
+</html>

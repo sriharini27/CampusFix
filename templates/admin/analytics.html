@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% from "_macros.html" import stat_card, stars with context %}
+{% block title %}Analytics{% endblock %}
+{% block page_title %}Smart Analytics{% endblock %}
+{% block content %}
+<div class="welcome">
+  <div>
+    <h1 class="h4 fw-bold mb-1">Live complaint analytics</h1>
+    <p class="text-muted mb-0">Every number below is computed from MongoDB aggregation pipelines at request time.</p>
+  </div>
+  <button class="btn btn-outline-primary" id="refreshCharts"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+</div>
+
+<div class="row g-3 mb-4">
+  {{ stat_card('Total complaints', data.total, 'bi-collection', 'primary') }}
+  {{ stat_card('Resolved', data.resolved, 'bi-check2-circle', 'green') }}
+  {{ stat_card('Unresolved', data.unresolved, 'bi-hourglass', 'amber') }}
+  {{ stat_card('Overdue', data.overdue, 'bi-alarm', 'orange') }}
+  {{ stat_card('SLA compliance', (data.sla.compliance ~ '%'), 'bi-shield-check', 'red' if data.sla.compliance < 60 else 'green') }}
+  {{ stat_card('Avg. resolution', (data.resolution.avg ~ ' h'), 'bi-stopwatch', 'indigo') }}
+</div>
+
+{% if data.total == 0 %}
+<div class="alert alert-info"><i class="bi bi-info-circle me-1"></i>No complaints yet — charts will fill in as students submit complaints.</div>
+{% endif %}
+
+<div class="row g-4 mb-4">
+  <div class="col-12">
+    <div class="card panel">
+      <div class="card-header d-flex flex-wrap justify-content-between gap-2">
+        <span><i class="bi bi-trophy me-2"></i>Department Performance Score</span>
+        <small class="text-muted fw-normal">Score = 30% resolution rate + 35% SLA compliance + 25% student rating + 10% overdue backlog</small>
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle mb-0 perf-table">
+          <thead><tr><th>Rank</th><th>Department</th><th class="text-end">Total</th><th class="text-end">Resolved</th><th class="text-end">Open</th>
+            <th class="text-end">Overdue</th><th class="text-end">Avg resolution</th><th class="text-end">SLA compliance</th><th class="text-end">Avg rating</th><th>Score</th></tr></thead>
+          <tbody>
+          {% for r in data.performance %}
+            <tr class="{{ 'text-muted' if r.score is none }}">
+              <td>{% if r.rank %}<span class="rank rank-{{ r.rank if r.rank <= 3 else 'n' }}">{{ r.rank }}</span>{% else %}—{% endif %}</td>
+              <td class="fw-semibold">{{ r.department }}</td>
+              <td class="text-end">{{ r.total }}</td>
+              <td class="text-end">{{ r.resolved }}</td>
+              <td class="text-end">{{ r.open }}</td>
+              <td class="text-end {{ 'text-danger fw-semibold' if r.overdue }}">{{ r.overdue }}</td>
+              <td class="text-end">{{ (r.avg_hours ~ ' h') if r.avg_hours is not none else '—' }}</td>
+              <td class="text-end">{% if r.sla is not none %}<span class="sla-pill sla-{{ 'green' if r.sla >= 80 else ('yellow' if r.sla >= 60 else 'red') }}"><span class="sla-dot"></span>{{ r.sla }}%</span>{% else %}—{% endif %}</td>
+              <td class="text-end">{% if r.avg_rating %}{{ stars(r.avg_rating|round|int) }} {{ r.avg_rating }}{% else %}<span class="small">No ratings</span>{% endif %}</td>
+              <td>{% if r.score is not none %}
+                <div class="d-flex align-items-center gap-2"><div class="progress" style="height:8px;width:60px"><div class="progress-bar {{ 'bg-success' if r.score >= 75 else ('bg-warning' if r.score >= 55 else 'bg-danger') }}" style="width: {{ r.score }}%"></div></div><b>{{ r.score }}</b></div>
+                {% else %}<span class="small">No data</span>{% endif %}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card panel h-100"><div class="card-header">SLA compliance by department</div><div class="card-body"><div class="chart-box"><canvas id="chartSla"></canvas></div></div></div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card panel h-100">
+      <div class="card-header">SLA summary</div>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item d-flex justify-content-between"><span><span class="sla-dot red"></span> Total SLA breaches</span><b>{{ data.sla.breached }}</b></li>
+        <li class="list-group-item d-flex justify-content-between"><span><span class="sla-dot red"></span> Critical SLA breaches</span><b>{{ data.sla.critical_breached }}</b></li>
+        <li class="list-group-item d-flex justify-content-between"><span><span class="sla-dot yellow"></span> Approaching SLA</span><b>{{ data.sla.approaching }}</b></li>
+        <li class="list-group-item d-flex justify-content-between"><span><span class="sla-dot green"></span> SLA compliance</span><b>{{ data.sla.compliance }}%</b></li>
+      </ul>
+      <div class="card-body small text-muted">Targets: Critical 1 day · High 3 · Medium 5 · Low 7. Yellow = less than 25% of the window left.</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-8"><div class="card panel h-100"><div class="card-header">Complaints submitted — last 14 days</div><div class="card-body"><div class="chart-box"><canvas id="chartTimeline"></canvas></div></div></div></div>
+  <div class="col-xl-4"><div class="card panel h-100"><div class="card-header">Resolved vs unresolved</div><div class="card-body"><div class="chart-box"><canvas id="chartResolved"></canvas></div>
+    <div class="text-center small text-muted mt-2">Resolution rate <b id="resRate">{{ data.resolution_rate }}%</b></div></div></div></div>
+
+  <div class="col-lg-6"><div class="card panel h-100"><div class="card-header">By category</div><div class="card-body"><div class="chart-box"><canvas id="chartCategory"></canvas></div></div></div></div>
+  <div class="col-lg-6"><div class="card panel h-100"><div class="card-header">By status</div><div class="card-body"><div class="chart-box"><canvas id="chartStatus"></canvas></div></div></div></div>
+
+  <div class="col-lg-6"><div class="card panel h-100"><div class="card-header">By department</div><div class="card-body"><div class="chart-box"><canvas id="chartDepartment"></canvas></div></div></div></div>
+  <div class="col-lg-6"><div class="card panel h-100"><div class="card-header">By priority</div><div class="card-body"><div class="chart-box"><canvas id="chartPriority"></canvas></div></div></div></div>
+
+  <div class="col-lg-6">
+    <div class="card panel h-100">
+      <div class="card-header">Resolution time</div>
+      <div class="card-body">
+        <div class="row text-center mb-3">
+          <div class="col"><div class="metric">{{ data.resolution.avg }}<small>h</small></div><div class="small text-muted">Average</div></div>
+          <div class="col"><div class="metric">{{ data.resolution.min }}<small>h</small></div><div class="small text-muted">Fastest</div></div>
+          <div class="col"><div class="metric">{{ data.resolution.max }}<small>h</small></div><div class="small text-muted">Slowest</div></div>
+          <div class="col"><div class="metric">{{ data.resolution.count }}</div><div class="small text-muted">Resolved</div></div>
+        </div>
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Department</th><th class="text-end">Avg hours</th><th class="text-end">Resolved</th></tr></thead>
+          <tbody>
+          {% for r in data.dept_resolution %}<tr><td>{{ r.department }}</td><td class="text-end">{{ r.avg }}</td><td class="text-end">{{ r.count }}</td></tr>
+          {% else %}<tr><td colspan="3" class="text-muted small">No resolved complaints yet.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card panel h-100">
+      <div class="card-header d-flex justify-content-between"><span>Feedback ratings</span><a href="{{ url_for('feedback.overview') }}" class="small">Details</a></div>
+      <div class="card-body">
+        <div class="chart-box chart-sm"><canvas id="chartRatings"></canvas></div>
+        <table class="table table-sm mb-0 mt-3">
+          <thead><tr><th>Department</th><th class="text-end">Avg rating</th><th class="text-end">Responses</th></tr></thead>
+          <tbody>
+          {% for r in data.rating_by_department %}<tr><td>{{ r.department }}</td><td class="text-end">{{ stars(r.avg|round|int) }} {{ r.avg }}</td><td class="text-end">{{ r.count }}</td></tr>
+          {% else %}<tr><td colspan="3" class="text-muted small">No feedback yet.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+<script>
+  window.ANALYTICS = {{ data|tojson }};
+  window.ANALYTICS_URL = "{{ url_for('analytics.analytics_data') }}";
+</script>
+<script src="{{ url_for('static', filename='js/analytics.js') }}"></script>
+{% endblock %}

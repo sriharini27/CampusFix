@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Profile{% endblock %}
+{% block page_title %}My Profile{% endblock %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card panel">
+      <div class="card-body text-center py-4">
+        <div class="avatar avatar-xl mx-auto mb-3">{{ user.name[:1] }}</div>
+        <h2 class="h5 fw-bold mb-0">{{ user.name }}</h2>
+        <div class="text-muted">{{ user.email }}</div>
+        <span class="badge text-bg-primary mt-2 text-uppercase">{{ user.role }}</span>
+      </div>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">{{ 'Student ID' if user.role == 'student' else 'Staff ID' }}</span><b>{{ user.login_id }}</b></li>
+        {% if user.role != 'student' %}<li class="list-group-item d-flex justify-content-between"><span class="text-muted">Department</span><b>{{ user.department or '—' }}</b></li>{% endif %}
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">{{ 'Complaints submitted' if user.role == 'student' else 'Complaints assigned to me' }}</span><b>{{ stats.total }}</b></li>
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Sign-in method</span><b>{{ 'Google' if user.auth_provider == 'google' else 'ID & password' }}</b></li>
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Member since</span><b>{{ user.created_at|dt('%d %b %Y') }}</b></li>
+      </ul>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card panel">
+      <div class="card-header"><i class="bi bi-key me-2"></i>{{ 'Change password' if has_password else 'Set a password' }}</div>
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          {% if has_password %}
+          <div class="mb-3"><label class="form-label">Current password</label><input type="password" name="current_password" class="form-control" required></div>
+          {% else %}
+          <p class="small text-muted"><i class="bi bi-google me-1"></i>You sign in with Google. Optionally set a password to also log in with your Student ID <b>{{ user.login_id }}</b>.</p>
+          {% endif %}
+          <div class="row g-3">
+            <div class="col-md-6"><label class="form-label">New password</label><input type="password" name="new_password" class="form-control" minlength="6" required></div>
+            <div class="col-md-6"><label class="form-label">Confirm new password</label><input type="password" name="confirm_password" class="form-control" minlength="6" required></div>
+          </div>
+          <button class="btn btn-primary mt-4"><i class="bi bi-check2 me-1"></i>Update password</button>
+        </form>
+        <p class="small text-muted mt-3 mb-0"><i class="bi bi-shield-lock me-1"></i>Passwords are stored only as salted Werkzeug hashes — never in plain text.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

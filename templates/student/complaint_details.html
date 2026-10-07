@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, priority_badge, flags, stepper, timeline, stars, sla_panel with context %}
+{% block title %}{{ c.complaint_id }}{% endblock %}
+{% block page_title %}Complaint {{ c.complaint_id }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('complaint.my_complaints') if is_owner else url_for('complaint.submit') }}" class="back-link"><i class="bi bi-arrow-left"></i> {{ 'My complaints' if is_owner else 'Back to complaint form' }}</a>
+
+{% if not is_owner %}
+<div class="alert alert-info d-flex flex-wrap align-items-center gap-2">
+  <i class="bi bi-people fs-5"></i>
+  <div class="flex-grow-1">This complaint was reported by another student{% if c.supporters %} and {{ c.supporters|length }} other{{ 's' if c.supporters|length > 1 }} {{ 'are' if c.supporters|length > 1 else 'is' }} facing it too{% endif %}.
+    {% if session.login_id in c.supporters %}<b>You have already joined it.</b>{% else %}Facing the same issue? Join it instead of filing a duplicate.{% endif %}</div>
+  {% if session.login_id not in c.supporters %}
+  <form method="post" action="{{ url_for('complaint.support', cid=c.complaint_id) }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button class="btn btn-primary btn-sm"><i class="bi bi-hand-thumbs-up me-1"></i>I'm facing this too</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card panel mb-4 {{ 'panel-urgent' if c.is_urgent }}">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between gap-3">
+      <div>
+        <div class="text-muted small mb-1">{{ c.complaint_id }} · submitted {{ c.created_at|dt }}{% if c.reported_via == 'qr' %} · <i class="bi bi-qr-code"></i> via QR{% endif %}</div>
+        <h1 class="h4 fw-bold mb-2">{{ c.title }}</h1>
+        <div class="d-flex flex-wrap gap-2 align-items-center">{{ priority_badge(c.priority) }} {{ status_badge(c.status) }} {{ flags(c) }}</div>
+      </div>
+      {% if can_reopen %}
+      <button class="btn btn-outline-reopened align-self-start" data-bs-toggle="modal" data-bs-target="#reopenModal"><i class="bi bi-arrow-counterclockwise me-1"></i>Reopen Complaint</button>
+      {% endif %}
+    </div>
+    <div class="mt-4">{{ stepper(c.status) }}</div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card panel mb-4">
+      <div class="card-header"><i class="bi bi-file-text me-2"></i>Complaint information</div>
+      <div class="card-body">
+        <p class="pre-line">{{ c.description }}</p>
+        <dl class="info-grid">
+          <dt>Category</dt><dd>{{ c.category }}</dd>
+          <dt>Location</dt><dd>{{ c.location }}</dd>
+          <dt>Department</dt><dd>{{ c.department or 'Not yet assigned' }}</dd>
+          {% if is_owner %}<dt>Assigned staff</dt><dd>{{ c.assigned_staff.name if c.assigned_staff else '—' }}</dd>{% endif %}
+          <dt>Last updated</dt><dd>{{ c.updated_at|dt }}</dd>
+          <dt>{{ 'Resolution time' if c.resolved_at else 'Age' }}</dt><dd>{{ c.age_text }}</dd>
+          {% if is_owner and c.supporters %}<dt>Also affected</dt><dd>{{ c.supporters|length }} other student{{ 's' if c.supporters|length > 1 }}</dd>{% endif %}
+          {% if is_owner and c.attachment %}
+          <dt>Attachment</dt><dd><a href="{{ url_for('static', filename='uploads/' ~ c.attachment) }}" target="_blank"><i class="bi bi-paperclip"></i> View file</a></dd>
+          {% endif %}
+        </dl>
+        {% if c.resolution_remarks %}
+        <div class="remarks-box"><div class="small fw-bold text-uppercase mb-1"><i class="bi bi-chat-square-text me-1"></i>Resolution remarks</div>{{ c.resolution_remarks }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if is_owner and c.status in ['Resolved', 'Closed'] %}
+    <div class="card panel" id="feedback">
+      <div class="card-header"><i class="bi bi-star me-2"></i>Your feedback</div>
+      <div class="card-body">
+        {% if feedback %}
+          <div class="d-flex align-items-center gap-2 mb-2">{{ stars(feedback.rating) }} <b>{{ RATING_LABELS[feedback.rating] }}</b></div>
+          {% if feedback.comment %}<p class="mb-1">"{{ feedback.comment }}"</p>{% endif %}
+          <small class="text-muted">Submitted {{ feedback.created_at|dt }} · thank you!</small>
+        {% else %}
+          <p class="text-muted">How satisfied are you with how this complaint was resolved?</p>
+          <form method="post" action="{{ url_for('feedback.submit', cid=c.complaint_id) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="star-input mb-1">
+              {% for i in range(5, 0, -1) %}
+                <input type="radio" name="rating" id="r{{ i }}" value="{{ i }}" required>
+                <label for="r{{ i }}" title="{{ i }} — {{ RATING_LABELS[i] }}"><i class="bi bi-star-fill"></i></label>
+              {% endfor %}
+            </div>
+            <div class="small text-muted mb-3" id="ratingLabel">Select 1–5 stars</div>
+            <textarea name="comment" class="form-control mb-3" rows="3" maxlength="1000" placeholder="Optional comment for the team"></textarea>
+            <button class="btn btn-success"><i class="bi bi-send me-1"></i>Submit feedback</button>
+          </form>
+        {% endif %}
+        {% if can_reopen %}<p class="small text-muted mt-3 mb-0"><i class="bi bi-info-circle me-1"></i>Problem not actually fixed? Use <b>Reopen Complaint</b> at the top.</p>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card panel mb-4">
+      <div class="card-header"><i class="bi bi-stopwatch me-2"></i>Service level (SLA)</div>
+      <div class="card-body">{{ sla_panel(c) }}</div>
+    </div>
+    <div class="card panel">
+      <div class="card-header"><i class="bi bi-clock-history me-2"></i>Status timeline</div>
+      <div class="card-body">{{ timeline(c.status_history, show_people=is_owner) }}</div>
+    </div>
+  </div>
+</div>
+
+{% if can_reopen %}
+<div class="modal fade" id="reopenModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="{{ url_for('complaint.reopen', cid=c.complaint_id) }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="modal-header"><h5 class="modal-title"><i class="bi bi-arrow-counterclockwise me-1"></i>Reopen {{ c.complaint_id }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <label class="form-label" for="reopenReason">Why are you reopening this complaint?</label>
+        <textarea name="reason" id="reopenReason" class="form-control" rows="4" minlength="10" maxlength="1000" required placeholder="e.g. The switchboard started sparking again this morning."></textarea>
+        <small class="text-muted">Your reason is added to the complaint timeline and the team is notified.</small>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-reopened">Reopen complaint</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>window.RATING_LABELS = {{ RATING_LABELS|tojson }};</script>
+{% endblock %}

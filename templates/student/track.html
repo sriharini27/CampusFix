@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, priority_badge, flags, stepper with context %}
+{% block title %}Track Complaint{% endblock %}
+{% block page_title %}Track Complaint{% endblock %}
+{% block content %}
+<div class="card panel mb-4">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-8">
+        <label class="form-label">Enter your complaint ID</label>
+        <div class="input-group input-group-lg">
+          <span class="input-group-text"><i class="bi bi-hash"></i></span>
+          <input type="text" name="cid" class="form-control text-uppercase" placeholder="CF-2026-0001" value="{{ cid }}" required>
+        </div>
+      </div>
+      <div class="col-md-4"><button class="btn btn-primary btn-lg w-100"><i class="bi bi-search me-1"></i>Track</button></div>
+    </form>
+  </div>
+</div>
+
+{% if complaint %}
+<div class="card panel mb-4">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+      <div>
+        <div class="text-muted small">{{ complaint.complaint_id }} · {{ complaint.category }} · {{ complaint.location }}</div>
+        <h2 class="h5 fw-bold mb-1">{{ complaint.title }} {{ flags(complaint) }}</h2>
+        <div>{{ priority_badge(complaint.priority) }} {{ status_badge(complaint.status) }}</div>
+      </div>
+      <a href="{{ url_for('complaint.details', cid=complaint.complaint_id) }}" class="btn btn-outline-primary align-self-start">Full details <i class="bi bi-arrow-right"></i></a>
+    </div>
+    {{ stepper(complaint.status) }}
+    <div class="row g-3 mt-2 small">
+      <div class="col-sm-4"><span class="text-muted d-block">Department</span><b>{{ complaint.department or 'Not yet assigned' }}</b></div>
+      <div class="col-sm-4"><span class="text-muted d-block">Assigned staff</span><b>{{ complaint.assigned_staff.name if complaint.assigned_staff else '—' }}</b></div>
+      <div class="col-sm-4"><span class="text-muted d-block">Age</span><b>{{ complaint.age_text }}</b></div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if active %}
+<h3 class="h6 text-muted text-uppercase fw-bold mb-3">Your active complaints</h3>
+<div class="row g-3">
+  {% for c in active %}
+  <div class="col-md-6 col-xl-4">
+    <a class="track-card {{ 'is-urgent' if c.is_urgent }}" href="{{ url_for('complaint.track', cid=c.complaint_id) }}">
+      <div class="d-flex justify-content-between"><b>{{ c.complaint_id }}</b>{{ status_badge(c.status) }}</div>
+      <div class="my-2 text-truncate">{{ c.title }}</div>
+      <div class="progress" style="height:6px"><div class="progress-bar" style="width: {{ c.progress }}%"></div></div>
+      <small class="text-muted">{{ c.progress }}% through workflow · {{ c.age_text }} old</small>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
